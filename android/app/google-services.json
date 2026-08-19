@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "685366329514",
+    "project_id": "vn-template-c570d",
+    "storage_bucket": "vn-template-c570d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:685366329514:android:7c666137b3dc45825d10d3",
+        "android_client_info": {
+          "package_name": "com.vntemplates.reels.maker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjbwYn7uSQw3Muqv7zNCywm71nJ1HReYQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
