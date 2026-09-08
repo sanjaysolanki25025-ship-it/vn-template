@@ -37,6 +37,11 @@ class NativeAdManager {
   final Map<String, Timer> _retryTimers = {};
 
   static final Map<String, AdCacheConfig> _configs = {
+    AppAdIdString.rateUsNativeAd: AdCacheConfig(
+      adName: 'Rate Us Native Ad',
+      cacheSize: 1,
+      factoryId: 'medium_native_ad',
+    ),
     AppAdIdString.splashNativeAd: AdCacheConfig(
       adName: 'Splash Native Ad',
       cacheSize: 1,
@@ -93,22 +98,11 @@ class NativeAdManager {
       cacheSize: 1,
       factoryId: 'medium_native_ad',
     ),
-    /*
-    AppAdIdString.filterBottomNativeAd: AdCacheConfig(
-      adName: 'Discover Bottom Native Ad',
-      cacheSize: 1,
-      factoryId: 'medium_native_ad',
-    ),
-
-
-
-
     AppAdIdString.maintenanceNativeAd: AdCacheConfig(
       adName: 'Maintenance Native Ad',
       cacheSize: 1,
       factoryId: 'row_native_ad',
     ),
-    */
 
     AppAdIdString.exitAppNativeAd: AdCacheConfig(
       adName: 'Exit App Native Ad',
@@ -182,6 +176,26 @@ class NativeAdManager {
         continue;
       }
 
+      if (adId == AppAdIdString.homeBottomNativeAd) {
+        AppLogger.log('SKIP INITIAL PRE-CACHE | ${entry.value.adName} | $adId | Pre-cached on demand.');
+        continue;
+      }
+
+      if (adId == AppAdIdString.templateDetailBottomNativeAd) {
+        AppLogger.log('SKIP INITIAL PRE-CACHE | ${entry.value.adName} | $adId | Pre-cached on demand.');
+        continue;
+      }
+
+      if (adId == AppAdIdString.templateDetailNativeAd) {
+        AppLogger.log('SKIP INITIAL PRE-CACHE | ${entry.value.adName} | $adId | Pre-cached on demand.');
+        continue;
+      }
+
+      if (adId == AppAdIdString.rateUsNativeAd) {
+        AppLogger.log('SKIP INITIAL PRE-CACHE | ${entry.value.adName} | $adId | Pre-cached on demand.');
+        continue;
+      }
+
       final cache = _cachedAds[adId] ?? [];
       final loading = _isLoading[adId] ?? false;
 
@@ -240,6 +254,7 @@ class NativeAdManager {
         adId != AppAdIdString.discoverNativeAd &&
         adId != AppAdIdString.favouriteNativeAd &&
         adId != AppAdIdString.templateDetailNativeAd &&
+        adId != AppAdIdString.rateUsNativeAd &&
         // adId != AppAdIdString.settingNativeAd &&
         // adId != AppAdIdString.settingDialogNativeAd &&
         // adId != AppAdIdString.howToUseNativeAd &&
@@ -473,6 +488,7 @@ class NativeAdManager {
             adId == AppAdIdString.discoverNativeAd ||
             adId == AppAdIdString.favouriteNativeAd ||
             adId == AppAdIdString.templateDetailNativeAd ||
+            adId == AppAdIdString.rateUsNativeAd ||
             // adId == AppAdIdString.settingNativeAd ||
             // adId == AppAdIdString.settingDialogNativeAd ||
             // adId == AppAdIdString.howToUseNativeAd ||

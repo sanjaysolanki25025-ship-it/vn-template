@@ -18,6 +18,8 @@ import 'package:vn_template/routes/app_route_string.dart';
 import 'package:vn_template/screens/setting/widgets/setting_option_tile.dart';
 import 'package:vn_template/screens/setting/widgets/rate_us_bottom_sheet.dart';
 import 'package:vn_template/common_widgets/common_bottomsheet.dart';
+import 'package:vn_template/common_widgets/common_dialog.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
 import 'package:vn_template/common_widgets/common_sizedbox.dart';
 import 'package:vn_template/core/localization/localization_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -89,6 +91,48 @@ class _SettingViewState extends State<SettingView> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+                  // Highlighted Subscription Option
+                  /*
+                  InkWell(
+                    onTap: () {
+                      context.push(AppRoutesString.subscriptionView);
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.amberColor, AppColors.orangeColor],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.amberColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.workspace_premium, color: AppColors.blackColor, size: 28),
+                          const SBW15(),
+                          Expanded(
+                            child: CommonTextWidget(
+                              text: AppStrings.txtPremiumSubscription,
+                              textStyle: size16TextStyle(
+                                textColor: AppColors.blackColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios, color: AppColors.blackColor, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SBH10(),
+                  */
                   SettingOptionTile(
                     icon: Icons.language,
                     title: AppStrings.txtSettingSelectionLanguage.getString(
@@ -128,7 +172,13 @@ class _SettingViewState extends State<SettingView> {
                   SettingOptionTile(
                     icon: Icons.star,
                     title: AppStrings.txtRateUs.getString(context),
-                    onTap: () {
+                    onTap: () async {
+                      CommonDialog.loaderDialog(context: context);
+                      NativeAdManager().preCacheAd(AppAdIdString.rateUsNativeAd);
+                      await Future.delayed(const Duration(seconds: 2));
+                      if (!context.mounted) return;
+                      CommonDialog.closeDialog(context: context);
+
                       CommonBottomSheet.showBottomSheet(
                         context: context,
                         widget: const RateUsBottomSheet(),

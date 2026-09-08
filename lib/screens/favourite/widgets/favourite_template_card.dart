@@ -14,6 +14,8 @@ import 'package:vn_template/data/models/template_model.dart';
 import 'package:vn_template/data/helper/ad_helper.dart';
 import 'package:vn_template/data/helper/preferences_helper.dart';
 import 'package:vn_template/core/constant/app_ad_id_string.dart';
+import 'package:vn_template/common_widgets/common_dialog.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
 
 class FavouriteTemplateCard extends StatelessWidget {
   final FavouriteModel item;
@@ -32,6 +34,12 @@ class FavouriteTemplateCard extends StatelessWidget {
       onTap: () async {
         if (item.previewVideo == null || item.previewVideo!.isEmpty) return;
         
+        CommonDialog.loaderDialog(context: context);
+        NativeAdManager().preCacheAd(AppAdIdString.templateDetailNativeAd);
+        await Future.delayed(const Duration(seconds: 2));
+        if (!context.mounted) return;
+        CommonDialog.closeDialog(context: context);
+
         final template = TemplateModel(
           id: item.templateId,
           description: item.description,

@@ -14,6 +14,8 @@ import 'package:vn_template/data/repository/app_repository.dart';
 import 'package:vn_template/screens/home/repository/home_repository.dart';
 import 'package:vn_template/data/helper/preferences_helper.dart';
 import 'package:external_app_launcher/external_app_launcher.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
+import 'package:vn_template/core/constant/app_ad_id_string.dart';
 
 part 'home_event.dart';
 
@@ -458,6 +460,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   Future<void> _startCreateFlowEvent(StartCreateFlowEvent event, Emitter<HomeState> emit) async {
     emit(state.copyWith(status: HomeStatus.createLoading));
+    
+    NativeAdManager().preCacheAd(AppAdIdString.homeBottomNativeAd);
+    await Future.delayed(const Duration(seconds: 2));
+
     final isInstalled = await LaunchApp.isAppInstalled(androidPackageName: 'com.frontrow.vlog');
     if (isInstalled) {
       emit(state.copyWith(status: HomeStatus.createLoaded, model: event.model));

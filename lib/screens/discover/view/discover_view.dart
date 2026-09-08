@@ -23,6 +23,7 @@ import 'package:vn_template/common_widgets/ad_widgets/native_ad/bloc/native_ad_b
 import 'package:vn_template/common_widgets/ad_widgets/native_ad/view/native_ad_view.dart';
 import 'package:vn_template/common_widgets/common_dialog.dart';
 import 'package:vn_template/data/models/template_model.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
 
 import '../../../common_widgets/shimmer/discover_shimmer..dart';
 import 'package:vn_template/screens/discover/widgets/discover_template_card.dart';
@@ -41,8 +42,16 @@ class _DiscoverViewState extends State<DiscoverView> {
     context.read<DiscoverBloc>().add(FetchDiscoverDataEvent());
   }
 
-  void _onOpenDinoGame(BuildContext context) {
+  void _onOpenDinoGame(BuildContext context) async {
     final int totalCoin = AppPreferences().getInt(AppPreferences.coin) ?? 0;
+
+    CommonDialog.loaderDialog(context: context);
+    NativeAdManager().preCacheAd(AppAdIdString.discoverBottomSheetNativeAd);
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (!context.mounted) return;
+    CommonDialog.closeDialog(context: context);
+
     if (totalCoin < 5) {
       CommonBottomSheet.showCommonBottomSheet(
         adId: AppAdIdString.discoverBottomSheetNativeAd,

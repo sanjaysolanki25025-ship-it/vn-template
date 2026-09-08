@@ -13,6 +13,8 @@ import 'package:vn_template/routes/app_route_string.dart';
 import 'package:vn_template/data/helper/ad_helper.dart';
 import 'package:vn_template/data/helper/preferences_helper.dart';
 import 'package:vn_template/core/constant/app_ad_id_string.dart';
+import 'package:vn_template/common_widgets/common_dialog.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
 
 class DiscoverTemplateCard extends StatelessWidget {
   final TemplateModel item;
@@ -28,6 +30,12 @@ class DiscoverTemplateCard extends StatelessWidget {
       onTap: () async {
         if (item.previewVideo == null || item.previewVideo!.isEmpty) return;
         
+        CommonDialog.loaderDialog(context: context);
+        NativeAdManager().preCacheAd(AppAdIdString.templateDetailNativeAd);
+        await Future.delayed(const Duration(seconds: 2));
+        if (!context.mounted) return;
+        CommonDialog.closeDialog(context: context);
+
         final bool? result = await context.push<bool>(AppRoutesString.templateDetailView, extra: item);
 
         if (result == true) {

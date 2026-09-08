@@ -10,4 +10,5 @@ class AppRoutesString {
   static const String feedbackCenterView = '/feedbackCenterView';
   static const String otherAppsView = '/otherAppsView';
   static const String maintenanceView = '/maintenanceView';
+  static const String subscriptionView = '/subscriptionView';
 }

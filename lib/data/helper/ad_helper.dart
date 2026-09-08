@@ -303,6 +303,9 @@ class AdHelper {
   //*****************Interstitial Ad Without pre catch ******************;
   static void instantShowInterstitialAdt({
     required String adUnitId,
+    VoidCallback? onAdClosed,
+    VoidCallback? onAdShowed,
+    VoidCallback? onAdFailed,
   }) {
     if (_isUserSubscribed) return;
 
@@ -320,13 +323,18 @@ class AdHelper {
             return;
           }
           ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              onAdShowed?.call();
+            },
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               isLoadMoreAdLoadingOrShowing = false;
+              onAdClosed?.call();
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
               ad.dispose();
               isLoadMoreAdLoadingOrShowing = false;
+              onAdFailed?.call();
             },
           );
 
@@ -334,6 +342,7 @@ class AdHelper {
         },
         onAdFailedToLoad: (error) {
           isLoadMoreAdLoadingOrShowing = false;
+          onAdFailed?.call();
         },
       ),
     );

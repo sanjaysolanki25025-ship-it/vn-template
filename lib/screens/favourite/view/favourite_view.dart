@@ -23,6 +23,7 @@ import 'package:vn_template/common_widgets/common_app_bar.dart';
 import 'package:vn_template/common_widgets/common_action_button.dart';
 import 'package:vn_template/common_widgets/common_bottomsheet.dart';
 import 'package:vn_template/common_widgets/common_dialog.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
 import 'package:vn_template/core/constant/app_image_string.dart';
 
 class FavouriteView extends StatefulWidget {
@@ -39,8 +40,16 @@ class _FavouriteViewState extends State<FavouriteView> {
     context.read<FavouriteBloc>().add(LoadFavouritesEvent());
   }
 
-  void _onOpenDinoGame(BuildContext context) {
+  void _onOpenDinoGame(BuildContext context) async {
     final int totalCoin = AppPreferences().getInt(AppPreferences.coin) ?? 0;
+
+    CommonDialog.loaderDialog(context: context);
+    NativeAdManager().preCacheAd(AppAdIdString.favouriteBottomNativeAd);
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (!context.mounted) return;
+    CommonDialog.closeDialog(context: context);
+
     if (totalCoin < 5) {
       CommonBottomSheet.showCommonBottomSheet(
         adId: AppAdIdString.favouriteBottomNativeAd,

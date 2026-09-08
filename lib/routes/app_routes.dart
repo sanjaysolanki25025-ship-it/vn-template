@@ -26,6 +26,8 @@ import 'package:vn_template/screens/feedback_center/view/feedback_center_view.da
 import 'package:vn_template/screens/other_app_screen/bloc/other_apps_bloc.dart';
 import 'package:vn_template/screens/other_app_screen/view/other_app_view.dart';
 import 'package:vn_template/screens/maintenance/view/maintenance_view.dart';
+import 'package:vn_template/screens/subscription/bloc/subscription_bloc.dart';
+import 'package:vn_template/screens/subscription/view/subscription_view.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -139,6 +141,14 @@ class AppRoutes {
         name: 'maintenance',
         path: AppRoutesString.maintenanceView,
         builder: (context, state) => const MaintenanceView(),
+      ),
+      
+      /// subscription view
+      GoRoute(
+        name: 'subscription',
+        path: AppRoutesString.subscriptionView,
+        builder: (context, state) =>
+            BlocProvider(create: (context) => SubscriptionBloc(), child: const SubscriptionView()),
       ),
     ],
   );

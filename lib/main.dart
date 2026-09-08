@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gma_mediation_ironsource/gma_mediation_ironsource.dart';
 import 'package:vn_template/core/constant/app_colors.dart';
 import 'package:vn_template/core/utils/localization_service.dart';
 import 'package:vn_template/data/helper/preferences_helper.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
   await AppPreferences().initialize();
   await initHive();
   await Firebase.initializeApp();
+  GmaMediationIronsource().setDoNotSell(true);
 
   // Set up Firebase Crashlytics
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;

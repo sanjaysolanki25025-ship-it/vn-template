@@ -102,10 +102,53 @@ class AppStrings {
 
   /// ----------------- Links & code & functionality string ---------------------
   static const String privacyPolicyUrl = "https://docs.google.com/document/d/184RcPEDDEYEk9UaPcmWn2YNzMIBJcJZQF94Cz3g8nTI/edit?usp=sharing";
+  static const String termConditionUrl = "https://docs.google.com/document/d/1PhmrhMpGGd55GclgcXeWJliUuRUBGnXO56bJqE5pAsY/edit?usp=sharing";
   static const String txtNotificationChannel = "broadcast";
 
   /// ----------------- Settings ---------------------
   static const String txtSettingSelectionLanguage = "txtSettingSelectionLanguage";
+  static const String txtPremiumSubscription = "Premium Subscription";
+
+  /// ----------------- Subscription ---------------------
+  static const String txtFaq = "FAQ";
+  static const String txtFaqQ1 = "What are the benefits of VN PLUS subscription?";
+  static const String txtFaqA1 = "With VN PLUS, you can watch more than 1000+ video template on the VN App without any ads";
+  static const String txtFaqQ2 = "What is the trial plan?";
+  static const String txtFaqA2 = "In the trial plan, you can try VN PLUS for 1 day by paying just ₹1. During this 1 day, you can cancel your plan anytime. After 1 day, your trial will automatically change to a monthly plan for ₹29 per month.";
+  static const String txtFaqQ3 = "How long is the VN PLUS subscription valid?";
+  static const String txtFaqA3 = "Your VN PLUS subscription stays active until you cancel it. The trial plan is for 1 day at ₹1. After the trial, it changes to a monthly plan that renews every month. To stop it, you need to cancel the subscription.";
+  static const String txtFaqQ4 = "When will the next payment happen?";
+  static const String txtFaqA4 = "After your 1-day trial, your monthly plan will start, and the payment will be automatically deducted. Then, the payment will happen every month on the same date. You can cancel it anytime after the trial or in the future months.";
+  static const String txtFaqQ5 = "How much does VN PLUS cost?";
+  static const String txtFaqA5 = "The trial plan costs ₹1 for 1 day. After that, the monthly plan costs ₹29 per month. Prices are inclusive of GST. The prices may be modified or withdrawn and may be made applicable to specific users or user groups, without prior notice.";
+  static const String txtFaqQ6 = "How can I pay for VN PLUS?";
+  static const String txtFaqA6 = "Payments are securely processed through your Google Play Store account using your linked payment methods.";
+  static const String txtTry1Day = "Try 1 Day for ₹1";
+  static const String txtTry1DayFor = "Try 1 day for";
+  static const String txtThen29MonthWith = "Then ₹29/month with ";
+  static const String txtVNPlusBenefits = "VN Plus Benefits";
+  static const String txtHowAutopayWorks = "How autopay works?";
+  static const String txtAutopayDescription = "Amount will be charged automatically every month after your trial ends.";
+  static const String txtOkay = "Okay";
+  static const String txtHowToCancel = "How to Cancel?";
+  static const String txtCancelDescription = "You can cancel your trial anytime by going to \"Manage Subscription\" in Profile.";
+  static const String txtUnlockAllVideos = "UNLOCK ALL PREMIUM VIDEOS";
+  static const String txtAutopay = "autopay";
+  static const String txtCancelAnytime = "cancel anytime";
+  static const String txtNoAds = "No Ads";
+  static const String txtUnlockPremiumTemplates = "Unlock All Premium Templates";
+  static const String txtGetBonusCoin = "Get 500 Bonus Coin";
+  static const String txtStartFor1 = "Start for ₹1";
+  static const String txtTryFor1DaysAnd = "Try for 1 days and ";
+  static const String txtSubscriptionCancel = "cancel";
+  static const String txtByContinuingYouAgreeToOur = "By Continuing You Agree To Our ";
+  static const String txtTerms = "Terms";
+  static const String txtAndSymbol = " & ";
+  static const String txtPleaseAcceptTerms = "Please accept Terms & Privacy Policy to continue";
+  static const String txtAnytime = " anytime";
+  static const String txtRupee1 = "₹1";
+  static const String txtStartTrial = "START TRIAL";
+  static const String txtSubscriptionPrivacyPolicy = "Privacy Policy";
 
   /// ----------------- Feedback Center ---------------------
   static const String txtFeedbackCenter = "txtFeedbackCenter";

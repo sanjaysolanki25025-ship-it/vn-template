@@ -5,6 +5,8 @@ import 'package:vn_template/data/models/template_model.dart';
 import 'package:vn_template/data/helper/preferences_helper.dart';
 import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:flutter/services.dart';
+import 'package:vn_template/core/utils/native_ad_manager.dart';
+import 'package:vn_template/core/constant/app_ad_id_string.dart';
 
 part 'template_detail_event.dart';
 part 'template_detail_state.dart';
@@ -78,6 +80,10 @@ class TemplateDetailBloc extends Bloc<TemplateDetailEvent, TemplateDetailState> 
 
   Future<void> _startCreateFlowEvent(StartCreateFlowEvent event, Emitter<TemplateDetailState> emit) async {
     emit(state.copyWith(status: TemplateDetailStatus.createLoading));
+    
+    NativeAdManager().preCacheAd(AppAdIdString.templateDetailNativeAd);
+    await Future.delayed(const Duration(seconds: 2));
+
     final isInstalled = await LaunchApp.isAppInstalled(androidPackageName: 'com.frontrow.vlog');
     if (isInstalled) {
       emit(state.copyWith(status: TemplateDetailStatus.createLoaded, model: event.model));

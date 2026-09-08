@@ -610,6 +610,12 @@ class _HomeViewState extends State<HomeView> {
                         padding: const EdgeInsets.only(right: 8),
                         child: GestureDetector(
                           onTap: () {
+                            if (category.categoryName == selectedCategory) return;
+                            
+                            int taps = AppPreferences().getInt(AppPreferences.categoryOnTap) ?? 0;
+                            taps++;
+                            AppPreferences().setInt(AppPreferences.categoryOnTap, taps);
+
                             final homeBloc = context.read<HomeBloc>();
                             homeBloc.add(
                               SelectCategoryEvent(
@@ -627,6 +633,19 @@ class _HomeViewState extends State<HomeView> {
                             );
                             _lastReelIndex = 0;
                             _reelScrollCount = 0;
+
+                            final showAd = taps % 3 == 0;
+                            if (showAd) {
+                              AdHelper.instantShowInterstitialAdt(
+                                adUnitId: AppAdIdString.categoryOnTapInterstitialAd,
+                                onAdShowed: () {
+                                  homeBloc.add(SetReelsPausedEvent(paused: true));
+                                },
+                                onAdClosed: () {
+                                  homeBloc.add(SetReelsPausedEvent(paused: false));
+                                },
+                              );
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
