@@ -1,4 +1,5 @@
 package com.vntemplates.reels.maker
+
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -6,18 +7,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.TextView
 import android.widget.RatingBar
-
-import com.google.android.gms.ads.nativead.MediaView
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdView
-import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
+import android.widget.TextView
+import com.google.android.libraries.ads.mobile.sdk.nativead.MediaView
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 import io.flutter.plugins.googlemobileads.NativeAdFactory
 
-
 class RowNativeAdFactory(private val context: Context) : NativeAdFactory {
-    override fun createNativeAd(nativeAd: NativeAd, customOptions: MutableMap<String, Any>?): NativeAdView {
+    override fun createNativeAd(nativeAd: NativeAd, customOptions: Map<String, Any>?): NativeAdView {
         val inflater = LayoutInflater.from(context)
         val adView = inflater.inflate(R.layout.native_row_ad, null) as NativeAdView
 
@@ -30,7 +28,6 @@ class RowNativeAdFactory(private val context: Context) : NativeAdFactory {
         val stars = adView.findViewById<RatingBar>(R.id.ad_stars)
         val ctaButton = adView.findViewById<Button>(R.id.ad_call_to_action)
 
-        adView.mediaView = mediaView
         adView.headlineView = headline
         adView.bodyView = body
         adView.storeView = store
@@ -38,8 +35,11 @@ class RowNativeAdFactory(private val context: Context) : NativeAdFactory {
         adView.starRatingView = stars
         adView.callToActionView = ctaButton
 
-        // 🔥 SIMPLIFIED: Let AdMob handle video/image automatically
-        mediaView?.visibility = View.VISIBLE  // Always show MediaView
+        // MediaView
+        mediaView?.visibility = View.VISIBLE
+        if (mediaView != null && nativeAd.mediaContent != null) {
+            mediaView.mediaContent = nativeAd.mediaContent
+        }
 
         // Always try icon (safe fallback)
         nativeAd.icon?.let { iconData ->
@@ -71,7 +71,7 @@ class RowNativeAdFactory(private val context: Context) : NativeAdFactory {
         ctaButton?.elevation = 2f
         ctaButton?.textSize = 14f
 
-        adView.setNativeAd(nativeAd)
+        adView.registerNativeAd(nativeAd, mediaView)
         return adView
     }
 }

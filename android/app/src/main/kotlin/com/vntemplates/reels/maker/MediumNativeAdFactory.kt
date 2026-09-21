@@ -1,23 +1,22 @@
 
 package com.vntemplates.reels.maker
+
 import android.content.Context
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.TextView
 import android.widget.RatingBar
-
-import com.google.android.gms.ads.nativead.MediaView
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdView
-import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
+import android.widget.TextView
+import com.google.android.libraries.ads.mobile.sdk.nativead.MediaView
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 import io.flutter.plugins.googlemobileads.NativeAdFactory
 
 class MediumNativeAdFactory(private val context: Context) : NativeAdFactory {
 
-    override fun createNativeAd(nativeAd: NativeAd, customOptions: MutableMap<String, Any>?): NativeAdView {
+    override fun createNativeAd(nativeAd: NativeAd, customOptions: Map<String, Any>?): NativeAdView {
 
         val inflater = LayoutInflater.from(context)
         val adView = inflater.inflate(R.layout.native_medium_ad, null) as NativeAdView
@@ -31,7 +30,6 @@ class MediumNativeAdFactory(private val context: Context) : NativeAdFactory {
         val price = adView.findViewById<TextView>(R.id.ad_price)
         val cta = adView.findViewById<Button>(R.id.ad_call_to_action)
 
-        adView.mediaView = mediaView
         adView.headlineView = headline
         adView.bodyView = body
         adView.iconView = icon
@@ -39,6 +37,11 @@ class MediumNativeAdFactory(private val context: Context) : NativeAdFactory {
         adView.starRatingView = stars
         adView.priceView = price
         adView.callToActionView = cta
+
+        // media
+        if (mediaView != null && nativeAd.mediaContent != null) {
+            mediaView.mediaContent = nativeAd.mediaContent
+        }
 
         // headline
         headline.text = nativeAd.headline
@@ -85,7 +88,6 @@ class MediumNativeAdFactory(private val context: Context) : NativeAdFactory {
 
         // CTA
         cta.text = nativeAd.callToAction ?: "Install"
-        adView.setNativeAd(nativeAd)
 
         // rounded button
         val radius = 8f * context.resources.displayMetrics.density
@@ -93,6 +95,9 @@ class MediumNativeAdFactory(private val context: Context) : NativeAdFactory {
         drawable.setColor(Color.parseColor("#2E5BFF"))
         drawable.cornerRadius = radius
         cta.background = drawable
+
+        // Register native ad with media view
+        adView.registerNativeAd(nativeAd, mediaView)
 
         return adView
     }
