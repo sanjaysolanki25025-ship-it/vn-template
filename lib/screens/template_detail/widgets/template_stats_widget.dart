@@ -7,13 +7,11 @@ import 'package:vn_template/core/utils/app_text_style.dart';
 class TemplateStatsWidget extends StatelessWidget {
   final String clip;
   final int likes;
-  final int usage;
 
   const TemplateStatsWidget({
     super.key,
     required this.clip,
     required this.likes,
-    required this.usage,
   });
 
   @override
@@ -33,8 +31,6 @@ class TemplateStatsWidget extends StatelessWidget {
           _buildStatItem(Icons.movie_creation_outlined, clip),
           _buildDivider(),
           _buildStatItem(Icons.favorite_border, likes.toString()),
-          _buildDivider(),
-          _buildStatItem(Icons.trending_up, usage.toString()),
         ],
       ),
     );

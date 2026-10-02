@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:vn_template/data/services/api_service.dart';
 import 'package:vn_template/core/utils/app_logger.dart';
 import 'package:vn_template/data/models/category_model.dart';
 import 'package:vn_template/data/models/favourite_model.dart';
@@ -27,14 +24,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   DocumentSnapshot? _lastTemplateDoc;
   double? _randomStart;
-  bool _templateHasMore = true;
   bool _hasMore = true;
+  bool _isLoadingMore = false;
+  bool _isWrapped = false;
+  List<TemplateModel> _categoryPool = [];
   final List<CategoryModel> categoryListData = [
     CategoryModel(categoryName: 'All'),
     CategoryModel(categoryName: 'Trending'),
     CategoryModel(categoryName: 'Premium 👑'),
   ];
-  final ApiService apiService = ApiService();
   StreamSubscription? _favouriteSub;
 
   HomeBloc() : super(HomeState.initial()) {
@@ -42,7 +40,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<LoadMoreEvent>(_loadMoreEvent);
     on<SelectCategoryEvent>(_selectCategoryEvent);
     on<ChangeIndexEvent>(_changeIndexEvent);
-    on<EnrichTemplateAtIndexEvent>(_enrichTemplateAtIndexEvent);
     on<SetReelsPausedEvent>(_setReelsPausedEvent);
     on<SetAdFlowStatusEvent>(_setAdFlowStatusEvent);
     on<AddFavouriteTemplateEvent>(_addFavouriteTemplateEvent);
@@ -84,14 +81,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     emit(state.copyWith(status: HomeStatus.loading));
 
-    if (_lastTemplateDoc == null) {
-      _randomStart = Random().nextDouble();
-    }
+    _lastTemplateDoc = null;
+    _isWrapped = false;
+    _randomStart = Random().nextDouble();
+    _categoryPool = [];
 
-    final result = await homeRepositoryTest.fetchTemplateWithPagination(
-      limit: 6,
-      lastDoc: _lastTemplateDoc,
-      randomStart: _randomStart,
+    final result = await homeRepositoryTest.fetchCategoryTemplates(
+      category: 'All',
+      limit: 300,
     );
 
     await result.match(
@@ -105,11 +102,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         );
       },
       (templates) async {
-        // ---------- PAGINATION ----------
-        _lastTemplateDoc = templates.lastDoc;
-        _templateHasMore = templates.hasMore;
-        _hasMore = (templates.templates.length >= 3) || _templateHasMore;
-
         // ---------- CATEGORIES ----------
         final categoryResult = await appRepository.fetchCategory();
 
@@ -134,27 +126,32 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           favIds = favModels.map((fav) => fav.templateId.toString()).toList();
         });
 
-        // 2. Map the templates efficiently
-        final List<TemplateModel> updatedTemplates = templates.templates.map((
-          template,
-        ) {
-          final isLiked = favIds.contains(template.id);
-          return template.copyWith(isFavourite: isLiked);
-        }).toList();
+        // 2. Map the templates efficiently (and ensure only valid videos)
+        final List<TemplateModel> updatedTemplates = templates
+            .where((t) => t.hasValidVideo)
+            .map((template) {
+              final isLiked = favIds.contains(template.id);
+              return template.copyWith(isFavourite: isLiked);
+            }).toList();
+
+        // 🔥 Randomize initial templates
+        updatedTemplates.shuffle();
+        _categoryPool = List.from(updatedTemplates);
 
         // ---------- EMIT STATE ----------
         emit(
           state.copyWith(
             status: HomeStatus.loaded,
-            templateList: updatedTemplates,
+            templateList: _categoryPool,
             allCategories: categoryListData,
             selectedCategoryName: 'All',
-            hasMore: _hasMore,
+            hasMore: true,
+            reelsPaused: false,
+            scrollLocked: false,
+            isAdFlowRunning: false,
+            currentIndex: 0,
           ),
         );
-
-        // Background one-by-one enrichment
-        add(EnrichTemplateAtIndexEvent(index: 0));
       },
     );
   }
@@ -164,60 +161,84 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     LoadMoreEvent event,
     Emitter<HomeState> emit,
   ) async {
-    if (!_hasMore) return;
+    // 🔒 Concurrency lock & check if more data available
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
 
-    // Determine current selected category from state. If it's 'All' or null, don't pass a category filter.
-    final currentCategory = state.selectedCategoryName;
-    final isAll = currentCategory == null || currentCategory == 'All';
+    try {
+      final currentCategory = state.selectedCategoryName;
+      final isAll = currentCategory == null || currentCategory == 'All';
 
-    final result = await homeRepositoryTest.fetchTemplateWithPagination(
-      limit: 6,
-      lastDoc: _lastTemplateDoc,
-      category: isAll ? null : currentCategory,
-    );
-
-    await result.match(
-      (failure) {
-        AppLogger.log("Load more templates error: ${failure.message}", error: failure.message);
-        emit(state.copyWith(status: HomeStatus.loaded));
-      },
-      (paged) async {
-        _lastTemplateDoc = paged.lastDoc;
-        _templateHasMore = paged.hasMore;
-        _hasMore = paged.hasMore;
-
-        final favoriteIdsResult = await appRepository.fetchFavouriteTemplate();
-        List<String> favIds = [];
-
-        favoriteIdsResult.match((failure) => null, (favModels) {
-          favIds = favModels.map((fav) => fav.templateId.toString()).toList();
-        });
-
-        final List<TemplateModel> newTemplates = paged.templates.map((
-          template,
-        ) {
-          final isLiked = favIds.contains(template.id);
-          return template.copyWith(isFavourite: isLiked, isMute: false);
-        }).toList();
-
-        final startIndex = state.templateList!.length;
-        final updatedList = [
-          ...state.templateList!,
-          ...newTemplates.map((e) => e.copyWith(isMute: false)),
-        ];
+      // 🔥 If category was tapped and we have a shuffled category pool:
+      if (_categoryPool.isNotEmpty) {
+        // Continuous infinite reels: append another freshly shuffled cycle of the pool
+        final moreShuffled = List<TemplateModel>.from(_categoryPool)..shuffle();
 
         emit(
           state.copyWith(
             status: HomeStatus.initial,
-            templateList: updatedList,
-            hasMore: _hasMore,
+            templateList: [...state.templateList!, ...moreShuffled],
+            hasMore: true,
           ),
         );
+        return;
+      }
 
-        // Background enrichment for new items
-        add(EnrichTemplateAtIndexEvent(index: startIndex));
-      },
-    );
+      final result = await homeRepositoryTest.fetchTemplateWithPagination(
+        limit: 6,
+        lastDoc: _lastTemplateDoc,
+        category: isAll ? null : currentCategory,
+        randomStart: _randomStart,
+        isWrapped: _isWrapped,
+      );
+
+      await result.match(
+        (failure) {
+          AppLogger.log("Load more templates error: ${failure.message}", error: failure.message);
+          emit(state.copyWith(status: HomeStatus.loaded));
+        },
+        (paged) async {
+          _lastTemplateDoc = paged.lastDoc;
+          _isWrapped = paged.isWrapped;
+          _hasMore = paged.hasMore;
+
+          final favoriteIdsResult = await appRepository.fetchFavouriteTemplate();
+          List<String> favIds = [];
+
+          favoriteIdsResult.match((failure) => null, (favModels) {
+            favIds = favModels.map((fav) => fav.templateId.toString()).toList();
+          });
+
+          // 🔥 Strict Deduplication: never re-add an already present template
+          final existingIds = (state.templateList ?? []).map((e) => e.id).toSet();
+
+          final List<TemplateModel> newTemplates = paged.templates
+              .where((t) => t.hasValidVideo && !existingIds.contains(t.id))
+              .map((template) {
+                final isLiked = favIds.contains(template.id);
+                return template.copyWith(isFavourite: isLiked, isMute: false);
+              }).toList();
+
+          // Shuffle new batch
+          newTemplates.shuffle();
+
+          final updatedList = [
+            ...state.templateList!,
+            ...newTemplates.map((e) => e.copyWith(isMute: false)),
+          ];
+
+          emit(
+            state.copyWith(
+              status: HomeStatus.initial,
+              templateList: updatedList,
+              hasMore: _hasMore,
+            ),
+          );
+        },
+      );
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 
   /// select category event
@@ -230,19 +251,21 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         selectedCategoryName: event.categoryName,
         status: HomeStatus.loading,
         templateList: [],
+        currentIndex: 0,
+        reelsPaused: false,
       ),
     );
 
     _lastTemplateDoc = null;
+    _isWrapped = false;
     _randomStart = Random().nextDouble();
-    _templateHasMore = true;
     _hasMore = true;
+    _categoryPool = [];
 
-    final isAll = event.categoryName == 'All';
-    final result = await homeRepositoryTest.fetchTemplateWithPagination(
-      limit: 6,
-      category: isAll ? null : event.categoryName,
-      randomStart: _randomStart,
+    // 🔥 USER DIRECTIVE: Category onTap must fetch and shuffle();
+    final result = await homeRepositoryTest.fetchCategoryTemplates(
+      category: event.categoryName,
+      limit: 300,
     );
 
     await result.match(
@@ -256,33 +279,35 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         );
       },
       (templates) async {
-        _lastTemplateDoc = templates.lastDoc;
-        _templateHasMore = templates.hasMore;
-        _hasMore = (templates.templates.length >= 3) || _templateHasMore;
-
         final favoriteIdsResult = await appRepository.fetchFavouriteTemplate();
         List<String> favIds = [];
         favoriteIdsResult.match((failure) => null, (favModels) {
           favIds = favModels.map((fav) => fav.templateId.toString()).toList();
         });
 
-        final List<TemplateModel> updatedTemplates = templates.templates.map((
-          template,
-        ) {
-          final isLiked = favIds.contains(template.id);
-          return template.copyWith(isFavourite: isLiked);
-        }).toList();
+        final List<TemplateModel> updatedTemplates = templates
+            .where((t) => t.hasValidVideo)
+            .map((template) {
+              final isLiked = favIds.contains(template.id);
+              return template.copyWith(isFavourite: isLiked);
+            }).toList();
+
+        // 🔥 SHUFFLE THE LIST ON CATEGORY ONTAP
+        updatedTemplates.shuffle();
+        _categoryPool = updatedTemplates;
 
         emit(
           state.copyWith(
             status: HomeStatus.loaded,
-            templateList: updatedTemplates,
-            hasMore: _hasMore,
+            templateList: _categoryPool,
+            selectedCategoryName: event.categoryName,
+            currentIndex: 0,
+            reelsPaused: false,
+            scrollLocked: false,
+            isAdFlowRunning: false,
+            hasMore: true,
           ),
         );
-
-        // Background one-by-one enrichment
-        add(EnrichTemplateAtIndexEvent(index: 0));
       },
     );
   }
@@ -292,8 +317,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     Emitter<HomeState> emit,
   ) async {
     emit(state.copyWith(currentIndex: event.index, reelsPaused: false));
-    // Trigger enrichment for the active index (which will cascade forward)
-    add(EnrichTemplateAtIndexEvent(index: event.index));
   }
 
   Future<void> _setReelsPausedEvent(
@@ -357,79 +380,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         }
       },
     );
-  }
-
-  bool _isValidVideoUrl(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowerUrl = url.toLowerCase();
-    return !lowerUrl.endsWith('.jpg') &&
-        !lowerUrl.endsWith('.jpeg') &&
-        !lowerUrl.endsWith('.png') &&
-        !lowerUrl.endsWith('.webp') &&
-        !lowerUrl.endsWith('.gif');
-  }
-
-  Future<void> _enrichTemplateAtIndexEvent(
-    EnrichTemplateAtIndexEvent event,
-    Emitter<HomeState> emit,
-  ) async {
-    final templates = state.templateList;
-    if (templates == null || event.index < 0 || event.index >= templates.length) {
-      return;
-    }
-
-    final template = templates[event.index];
-    if (template.previewVideo != null &&
-        template.previewVideo!.isNotEmpty &&
-        _isValidVideoUrl(template.previewVideo)) {
-      // Already enriched: move to the next item in the list
-      add(EnrichTemplateAtIndexEvent(index: event.index + 1));
-      return;
-    }
-
-    final enriched = await apiService.enrichTemplate(template);
-
-    if (state.templateList == null || event.index >= state.templateList!.length) {
-      return;
-    }
-
-    final updatedList = List<TemplateModel>.from(state.templateList!);
-
-    if (enriched.previewVideo != null &&
-        enriched.previewVideo!.isNotEmpty &&
-        _isValidVideoUrl(enriched.previewVideo)) {
-      updatedList[event.index] = enriched;
-
-      final jsonResponse = JsonEncoder.withIndent('  ', (dynamic object) {
-        if (object is DateTime) return object.toIso8601String();
-        return object.toString();
-      }).convert(enriched.toMap());
-      AppLogger.log("API Enrichment Success at index ${event.index}:\n$jsonResponse");
-
-      emit(state.copyWith(templateList: updatedList));
-
-      // Proceed to enrich the next item
-      add(EnrichTemplateAtIndexEvent(index: event.index + 1));
-    } else {
-      AppLogger.log("API Enrichment empty or invalid video format for code ${template.code} at index ${event.index}. Removing template.");
-      updatedList.removeAt(event.index);
-
-      int newIndex = state.currentIndex;
-      if (newIndex >= updatedList.length) {
-        newIndex = updatedList.isEmpty ? 0 : updatedList.length - 1;
-      }
-
-      emit(state.copyWith(
-        templateList: updatedList,
-        currentIndex: newIndex,
-      ));
-
-      // Since we removed this item, the next item shifts to event.index.
-      // We trigger enrichment at the same index (which is now the next item).
-      if (updatedList.isNotEmpty && event.index < updatedList.length) {
-        add(EnrichTemplateAtIndexEvent(index: event.index));
-      }
-    }
   }
 
   void _loadRewardAD(LoadRewardAD event, Emitter<HomeState> emit) {

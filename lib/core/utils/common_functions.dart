@@ -16,7 +16,8 @@ class CommonFunction {
   static Future<bool> startCreatingIos({required String qrCodeLink}) async {
     final vnUrl = Uri.parse(qrCodeLink);
 
-    final bool launched = await launchUrl(vnUrl, mode: LaunchMode.externalApplication);
+    final bool launched =
+        await launchUrl(vnUrl, mode: LaunchMode.externalApplication);
 
     if (launched) {
       return true;
@@ -27,8 +28,13 @@ class CommonFunction {
 
   static String cleanDescription(String? description) {
     if (description == null) return '';
-    final regExp = RegExp(r'^(clips?|clipes?|photos?|photoes?)\s*:\s*[^,\s]+(,\s*)?', caseSensitive: false);
-    return description.replaceFirst(regExp, '');
+    final regExp = RegExp(
+      r'^\s*(clips?|clipes?|photos?|photoes?)\s*[:=-]?\s*[^,\s]+[\s,;\-]*',
+      caseSensitive: false,
+    );
+    var cleaned = description.replaceFirst(regExp, '').trim();
+    cleaned = cleaned.replaceFirst(RegExp(r'^[\s,;\-]+'), '').trim();
+    return cleaned;
   }
 
   static Future<void> shareApp() async {

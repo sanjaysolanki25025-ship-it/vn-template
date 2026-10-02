@@ -18,7 +18,7 @@ class AppStrings {
   /// ----------------- collection ---------------------
   static const String txtCategory = "category";
   static const String txtLanguage = "language";
-  static const String txtTemplatedYT = "templates_yt";
+  static const String txtTemplatesData = "templates_data";
   static const String txtFeedback = "feedback";
   static const String txtApps = "apps";
 

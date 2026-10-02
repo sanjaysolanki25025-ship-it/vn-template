@@ -66,6 +66,7 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("com.android.billingclient:billing:7.1.1")
+    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.3.1")
 }
 
 configurations.configureEach {

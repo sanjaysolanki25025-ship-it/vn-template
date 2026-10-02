@@ -5,10 +5,12 @@ class PagedTemplates {
   final List<TemplateModel> templates;
   final DocumentSnapshot? lastDoc;
   final bool hasMore;
+  final bool isWrapped;
 
   PagedTemplates({
     required this.templates,
     required this.lastDoc,
     required this.hasMore,
+    this.isWrapped = false,
   });
 }

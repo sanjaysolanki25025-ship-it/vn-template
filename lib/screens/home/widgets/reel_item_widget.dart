@@ -12,7 +12,6 @@ import 'package:vn_template/common_widgets/common_text_widget.dart';
 import 'package:vn_template/data/models/favourite_model.dart';
 import 'package:vn_template/data/models/template_model.dart';
 import 'package:vn_template/screens/home/bloc/home_bloc.dart';
-
 import 'package:vn_template/screens/home/widgets/favourite_button_widget.dart';
 import 'package:vn_template/screens/home/widgets/share_button_widget.dart';
 import 'package:go_router/go_router.dart';
@@ -34,6 +33,7 @@ class ReelItemWidget extends StatelessWidget {
   final VideoPlayerController? controller;
   final bool isActive;
   final int index;
+  final bool hasError;
 
   const ReelItemWidget({
     super.key,
@@ -41,107 +41,43 @@ class ReelItemWidget extends StatelessWidget {
     required this.controller,
     required this.isActive,
     required this.index,
+    this.hasError = false,
   });
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPhotoView() {
+    final photoUrl =
+        template.photoUrl ?? template.previewImage ?? '';
+    if (photoUrl.isEmpty) {
+      return Container(color: Colors.black);
+    }
+
+    return CachedNetworkImage(
+      imageUrl: photoUrl,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.whiteColor),
+        ),
+      ),
+      errorWidget: (context, url, error) => Container(color: Colors.black),
+    );
+  }
+
+  Widget _buildVideoView(BuildContext context) {
+    if (!template.hasValidVideo || hasError) {
+      return _buildPhotoView();
+    }
+
     if (controller == null) {
-      // Fallback layout when controller is not yet initialized or loaded
       return Stack(
         fit: StackFit.expand,
         children: [
-          if (template.previewImage != null &&
-              template.previewImage!.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: template.previewImage!,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => const Center(
-                child: CircularProgressIndicator(color: AppColors.whiteColor),
-              ),
-              errorWidget: (context, url, error) => const SizedBox(),
+          _buildPhotoView(),
+          if (isActive)
+            const Center(
+              child: CircularProgressIndicator(color: AppColors.whiteColor),
             ),
-          const Center(
-            child: CircularProgressIndicator(color: AppColors.whiteColor),
-          ),
-          _buildOverlay(),
-          Positioned(
-            bottom: 88,
-            right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () {
-                    if (template.isFavourite) {
-                      context.read<HomeBloc>().add(
-                        RemoveFavouriteTemplateEvent(
-                          index: index,
-                          templateId: template.id ?? '',
-                        ),
-                      );
-                    } else {
-                      context.read<HomeBloc>().add(
-                        AddFavouriteTemplateEvent(
-                          index: index,
-                          favouriteModel: FavouriteModel(
-                            templateId: template.id ?? '',
-                            description: template.description ?? '',
-                            qrCode: template.qrCode ?? '',
-                            category: template.category?.join(', ') ?? '',
-                            language: template.language ?? '',
-                            code: template.code ?? '',
-                            clip: template.clip ?? '',
-                            duration: template.duration ?? '',
-                            createdAt: template.createdAt.toIso8601String(),
-                            rand: template.rand,
-                            coin: template.coin ?? 0,
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: FavouriteButtonWidget(
-                    isFavourite: template.isFavourite,
-                  ),
-                ),
-                const SBH10(),
-                GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () {
-                    CommonFunction.shareApp();
-                  },
-                  child: const ShareButtonWidget(),
-                ),
-                const SBH10(),
-                CommonActionButton(
-                  assetPath: AppImagesString.imgDino,
-                  onTap: () => _onOpenDinoGame(context),
-                  imageSize: 45,
-                  removeDecoration: true,
-                  fit: BoxFit.fill,
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: CommonButton(
-              text: AppStrings.txtUseTemplate.getString(context),
-              onTap: () {
-                context.read<HomeBloc>().add(StartCreateFlowEvent(model: template));
-              },
-              suffixWidget: (template.coin ?? 0) > 0 && AppImagesString.imgPremium.isNotEmpty
-                  ? Image.asset(
-                      AppImagesString.imgPremium,
-                      height: 20,
-                      width: 20,
-                    )
-                  : null,
-            ),
-          ),
         ],
       );
     }
@@ -152,6 +88,16 @@ class ReelItemWidget extends StatelessWidget {
         final isInitialized = value.isInitialized;
         final isBuffering = value.isBuffering || !isInitialized;
         final isPlaying = value.isPlaying;
+        final isReelsPaused = context.watch<HomeBloc>().state.reelsPaused;
+
+        // Auto-play active reel as soon as it is initialized if not paused
+        if (isActive && isInitialized && !isReelsPaused && !isPlaying && !isBuffering) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (controller != null && !controller!.value.isPlaying) {
+              controller!.play();
+            }
+          });
+        }
 
         return Stack(
           fit: StackFit.expand,
@@ -162,23 +108,17 @@ class ReelItemWidget extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (template.previewImage != null &&
-                        template.previewImage!.isNotEmpty)
-                      CachedNetworkImage(
-                        imageUrl: template.previewImage!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.whiteColor,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => const SizedBox(),
-                      ),
+                    // Always show photo cover while buffering or before video initializes
+                    _buildPhotoView(),
                     if (isInitialized)
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () {
-                          final isPaused = context.read<HomeBloc>().state.reelsPaused;
-                          context.read<HomeBloc>().add(SetReelsPausedEvent(paused: !isPaused));
+                          final isPaused =
+                              context.read<HomeBloc>().state.reelsPaused;
+                          context
+                              .read<HomeBloc>()
+                              .add(SetReelsPausedEvent(paused: !isPaused));
                         },
                         child: VideoPlayer(controller!),
                       ),
@@ -187,8 +127,8 @@ class ReelItemWidget extends StatelessWidget {
               ),
             ),
 
-            // Centered Play Button when paused
-            if (isInitialized && !isPlaying && !isBuffering)
+            // Centered Play Button ONLY when user paused the reel
+            if (isInitialized && isReelsPaused)
               Center(
                 child: IgnorePointer(
                   child: Container(
@@ -197,7 +137,7 @@ class ReelItemWidget extends StatelessWidget {
                       color: Colors.black.withValues(alpha: 0.5),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.play_arrow,
                       size: 45,
                       color: AppColors.whiteColor,
@@ -211,99 +151,117 @@ class ReelItemWidget extends StatelessWidget {
               const Center(
                 child: CircularProgressIndicator(color: AppColors.whiteColor),
               ),
-
-            _buildOverlay(),
-            Positioned(
-              bottom: 88,
-              right: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () {
-                      if (template.isFavourite) {
-                        context.read<HomeBloc>().add(
-                          RemoveFavouriteTemplateEvent(
-                            index: index,
-                            templateId: template.id ?? '',
-                          ),
-                        );
-                      } else {
-                        context.read<HomeBloc>().add(
-                          AddFavouriteTemplateEvent(
-                            index: index,
-                            favouriteModel: FavouriteModel(
-                              templateId: template.id ?? '',
-                              description: template.description ?? '',
-                              qrCode: template.qrCode ?? '',
-                              category: template.category?.join(', ') ?? '',
-                              language: template.language ?? '',
-                              code: template.code ?? '',
-                              clip: template.clip ?? '',
-                              duration: template.duration ?? '',
-                              createdAt: template.createdAt.toIso8601String(),
-                              rand: template.rand,
-                              coin: template.coin ?? 0,
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    child: FavouriteButtonWidget(
-                      isFavourite: template.isFavourite,
-                    ),
-                  ),
-                  const SBH10(),
-                  GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () {
-                      CommonFunction.shareApp();
-                    },
-                    child: const ShareButtonWidget(),
-                  ),
-                  const SBH10(),
-                  CommonActionButton(
-                    assetPath: AppImagesString.imgDino,
-                    onTap: () => _onOpenDinoGame(context),
-                    imageSize: 45,
-                    removeDecoration: true,
-                    fit: BoxFit.fill,
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: CommonButton(
-                text: AppStrings.txtUseTemplate.getString(context),
-                onTap: () {
-                  context.read<HomeBloc>().add(StartCreateFlowEvent(model: template));
-                },
-                suffixWidget: (template.coin ?? 0) > 0 && AppImagesString.imgPremium.isNotEmpty
-                    ? Image.asset(
-                        AppImagesString.imgPremium,
-                        height: 20,
-                        width: 20,
-                      )
-                    : null,
-              ),
-            ),
           ],
         );
       },
     );
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildVideoView(context),
+        _buildOverlay(),
+        _buildSideActionButtons(context),
+        _buildBottomButton(context),
+      ],
+    );
+  }
+
+  Widget _buildSideActionButtons(BuildContext context) {
+    return Positioned(
+      bottom: 88,
+      right: 16,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              if (template.isFavourite) {
+                context.read<HomeBloc>().add(
+                  RemoveFavouriteTemplateEvent(
+                    index: index,
+                    templateId: template.id ?? '',
+                  ),
+                );
+              } else {
+                context.read<HomeBloc>().add(
+                  AddFavouriteTemplateEvent(
+                    index: index,
+                    favouriteModel: FavouriteModel(
+                      templateId: template.id ?? '',
+                      description: template.description ?? '',
+                      qrCode: template.qrCode ?? '',
+                      category: template.category?.join(', ') ?? '',
+                      language: template.language ?? '',
+                      code: template.code ?? '',
+                      clip: template.clip ?? '',
+                      duration: template.duration ?? '',
+                      createdAt: template.createdAt.toIso8601String(),
+                      rand: template.rand,
+                      coin: template.coin ?? 0,
+                    ),
+                  ),
+                );
+              }
+            },
+            child: FavouriteButtonWidget(
+              isFavourite: template.isFavourite,
+            ),
+          ),
+          const SBH10(),
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              CommonFunction.shareApp();
+            },
+            child: const ShareButtonWidget(),
+          ),
+          const SBH10(),
+          CommonActionButton(
+            assetPath: AppImagesString.imgDino,
+            onTap: () => _onOpenDinoGame(context),
+            imageSize: 45,
+            removeDecoration: true,
+            fit: BoxFit.fill,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomButton(BuildContext context) {
+    return Positioned(
+      bottom: 16,
+      left: 16,
+      right: 16,
+      child: CommonButton(
+        text: AppStrings.txtUseTemplate.getString(context),
+        onTap: () {
+          context.read<HomeBloc>().add(StartCreateFlowEvent(model: template));
+        },
+        suffixWidget: (template.coin ?? 0) > 0 &&
+                AppImagesString.imgPremium.isNotEmpty
+            ? Image.asset(
+                AppImagesString.imgPremium,
+                height: 20,
+                width: 20,
+              )
+            : null,
+      ),
+    );
+  }
+
   void _onOpenDinoGame(BuildContext context) async {
     final int totalCoin = AppPreferences().getInt(AppPreferences.coin) ?? 0;
-    
+
     CommonDialog.loaderDialog(context: context);
     NativeAdManager().preCacheAd(AppAdIdString.homeBottomNativeAd);
     await Future.delayed(const Duration(seconds: 2));
-    
+
     if (!context.mounted) return;
     CommonDialog.closeDialog(context: context);
 
@@ -327,7 +285,9 @@ class ReelItemWidget extends StatelessWidget {
               context.push(AppRoutesString.dinoView).then((_) {
                 if (context.mounted) {
                   context.read<HomeBloc>().add(ResetHomeStatus());
-                  context.read<HomeBloc>().add(SetReelsPausedEvent(paused: false));
+                  context
+                      .read<HomeBloc>()
+                      .add(SetReelsPausedEvent(paused: false));
                 }
               });
             },
@@ -341,7 +301,8 @@ class ReelItemWidget extends StatelessWidget {
       CommonBottomSheet.showCommonBottomSheet(
         adId: AppAdIdString.homeBottomNativeAd,
         context: context,
-        firstButtonText: "🔓 ${AppStrings.txtFiveLetter.getString(context)} ${AppStrings.txtCoins.getString(context)}",
+        firstButtonText:
+            "🔓 ${AppStrings.txtFiveLetter.getString(context)} ${AppStrings.txtCoins.getString(context)}",
         secondButtonText: AppStrings.txtWatchAd.getString(context),
         title: AppStrings.txtPlayGameReward.getString(context),
         secondButtonOnTap: () {
@@ -358,7 +319,9 @@ class ReelItemWidget extends StatelessWidget {
               context.push(AppRoutesString.dinoView).then((_) {
                 if (context.mounted) {
                   context.read<HomeBloc>().add(ResetHomeStatus());
-                  context.read<HomeBloc>().add(SetReelsPausedEvent(paused: false));
+                  context
+                      .read<HomeBloc>()
+                      .add(SetReelsPausedEvent(paused: false));
                 }
               });
             },
@@ -374,7 +337,9 @@ class ReelItemWidget extends StatelessWidget {
           context.push(AppRoutesString.dinoView).then((_) {
             if (context.mounted) {
               context.read<HomeBloc>().add(ResetHomeStatus());
-              context.read<HomeBloc>().add(SetReelsPausedEvent(paused: false));
+              context
+                  .read<HomeBloc>()
+                  .add(SetReelsPausedEvent(paused: false));
             }
           });
         },
@@ -457,27 +422,6 @@ class ReelItemWidget extends StatelessWidget {
                     const SizedBox(width: 4),
                     CommonTextWidget(
                       text: '${template.likes ?? 0}',
-                      textStyle: size12TextStyle(
-                        textColor: AppColors.whiteColor.withValues(alpha: 0.95),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    CommonTextWidget(
-                      text: '|',
-                      textStyle: size12TextStyle(
-                        textColor: AppColors.whiteColor.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.trending_up,
-                      size: 14,
-                      color: AppColors.whiteColor.withValues(alpha: 0.95),
-                    ),
-                    const SizedBox(width: 4),
-                    CommonTextWidget(
-                      text: '${template.usage ?? 0}',
                       textStyle: size12TextStyle(
                         textColor: AppColors.whiteColor.withValues(alpha: 0.95),
                         fontWeight: FontWeight.bold,

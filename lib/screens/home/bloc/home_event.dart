@@ -16,11 +16,6 @@ class ChangeIndexEvent extends HomeEvent {
   ChangeIndexEvent({required this.index});
 }
 
-class EnrichTemplateAtIndexEvent extends HomeEvent {
-  final int index;
-  EnrichTemplateAtIndexEvent({required this.index});
-}
-
 class SetReelsPausedEvent extends HomeEvent {
   final bool paused;
   SetReelsPausedEvent({required this.paused});

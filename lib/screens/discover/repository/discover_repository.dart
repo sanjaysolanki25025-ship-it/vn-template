@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:vn_template/core/constant/app_string.dart';
-import 'package:vn_template/data/models/category_model.dart';
 import 'package:vn_template/data/models/failure_model.dart';
 import 'package:vn_template/data/models/paged_templates_model.dart';
 import 'package:vn_template/data/models/template_model.dart';
@@ -19,19 +18,29 @@ class DiscoverRepository {
   }) async {
     try {
       Query<Map<String, dynamic>> query = fireStore.collection(
-        AppStrings.txtTemplatedYT,
+        AppStrings.txtTemplatesData,
       );
 
-      if (category != null && category.isNotEmpty && category.toLowerCase() != 'all') {
-        query = query.where("category", arrayContains: category);
-      }
+      final isCategoryFilter = category != null &&
+          category.isNotEmpty &&
+          category.toLowerCase() != 'all';
 
-      if (randomStart != null && lastDoc == null) {
-        query = query
-            .orderBy("rand")
-            .where("rand", isGreaterThanOrEqualTo: randomStart);
+      if (isCategoryFilter) {
+        final cleanCat = category.replaceAll('👑', '').trim();
+        final isPremium = cleanCat.toLowerCase() == 'premium';
+        if (isPremium) {
+          query = query.where("coin", isGreaterThan: 0);
+        } else {
+          query = query.where("category", arrayContains: cleanCat);
+        }
       } else {
-        query = query.orderBy("rand");
+        if (randomStart != null && lastDoc == null) {
+          query = query
+              .orderBy("rand")
+              .where("rand", isGreaterThanOrEqualTo: randomStart);
+        } else {
+          query = query.orderBy("rand");
+        }
       }
 
       query = query.limit(limit);
@@ -48,11 +57,13 @@ class DiscoverRepository {
           );
 
       if (snapshot.docs.isEmpty && randomStart != null) {
-        return fetchTemplatesWithPagination(category: category, limit: limit);
+        return await fetchTemplatesWithPagination(category: category, limit: limit);
       }
 
+      // Filter out templates where video_url is an image or empty
       final templates = snapshot.docs
           .map((doc) => TemplateModel.fromMap(doc.data()).copyWith(id: doc.id))
+          .where((t) => t.hasValidVideo)
           .toList();
 
       final last = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;

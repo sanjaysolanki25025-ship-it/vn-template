@@ -13,7 +13,6 @@ import 'package:vn_template/screens/template_detail/bloc/template_detail_bloc.da
 import 'package:vn_template/screens/template_detail/widgets/template_stats_widget.dart';
 import 'package:vn_template/screens/template_detail/widgets/template_video_player.dart';
 import 'package:flutter_localization/flutter_localization.dart';
-import 'package:flutter_localization/flutter_localization.dart';
 import 'package:vn_template/core/constant/app_string.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vn_template/data/helper/ad_helper.dart';
@@ -422,7 +421,6 @@ class _TemplateDetailViewState extends State<TemplateDetailView> {
                 TemplateStatsWidget(
                   clip: widget.template.clip ?? '',
                   likes: widget.template.likes ?? 0,
-                  usage: widget.template.usage ?? 0,
                 ),
                 const SBH5(),
                 BlocProvider(

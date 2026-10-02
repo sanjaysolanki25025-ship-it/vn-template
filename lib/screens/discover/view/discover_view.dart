@@ -184,7 +184,7 @@ class _DiscoverViewState extends State<DiscoverView> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
             itemCount: state.categories.length,
-            separatorBuilder: (_, __) => const SBW10(),
+            separatorBuilder: (_, _) => const SBW10(),
             itemBuilder: (context, index) {
               final isSelected = state.selectedCategoryIndex == index;
               final categoryItem = state.categories[index];

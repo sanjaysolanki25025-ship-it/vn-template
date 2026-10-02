@@ -16,8 +16,9 @@ import 'package:vn_template/screens/home/bloc/home_bloc.dart';
 import 'package:vn_template/screens/home/widgets/reel_item_widget.dart';
 import 'package:vn_template/common_widgets/common_dialog.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vn_template/core/utils/common_functions.dart';
 import 'package:vn_template/common_widgets/common_bottomsheet.dart';
+
+import '../utils/reel_video_cache_manager.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -26,106 +27,200 @@ class HomeView extends StatefulWidget {
   State<HomeView> createState() => _HomeViewState();
 }
 
-class _HomeViewState extends State<HomeView> {
-  final Map<String, VideoPlayerController> _videoCache = {};
+class _HomeViewState extends State<HomeView> with WidgetsBindingObserver {
+  final Map<int, VideoPlayerController> _controllers = {};
+  final Set<int> _initializingIndices = {};
   late final PageController _pageController;
+  int _currentIndex = 0;
   int _lastReelIndex = 0;
   int _reelScrollCount = 0;
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     AdHelper.precacheInterstitialAd(adId: AppAdIdString.homeReelsInterstitial);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<HomeBloc>().add(SetReelsPausedEvent(paused: false));
       context.read<HomeBloc>().add(FetchTemplateDataEvent());
     });
     InAppUpdateManager.checkForUpdate(context);
   }
 
   @override
-  void dispose() {
-    for (final controller in _videoCache.values) {
-      controller.dispose();
+  void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
+    if (lifecycle == AppLifecycleState.paused ||
+        lifecycle == AppLifecycleState.inactive) {
+      _controllers[_currentIndex]?.pause();
+    } else if (lifecycle == AppLifecycleState.resumed) {
+      final reelsPaused = context.read<HomeBloc>().state.reelsPaused;
+      if (!reelsPaused) {
+        _controllers[_currentIndex]?.play();
+      }
     }
-    _videoCache.clear();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _disposeAllControllers();
     _pageController.dispose();
     super.dispose();
   }
 
-  void _manageVideoCache(
+  void _disposeAllControllers() {
+    for (final controller in _controllers.values) {
+      controller.pause();
+      controller.dispose();
+    }
+    _controllers.clear();
+    _initializingIndices.clear();
+  }
+
+  String? _getVideoUrl(List<TemplateModel> templates, int index) {
+    if (index >= 0 && index < templates.length) {
+      final t = templates[index];
+      if (t.hasValidVideo) {
+        return (t.videoUrl ?? t.previewVideo)?.trim();
+      }
+    }
+    return null;
+  }
+
+  /// Prune any controllers outside the tight [targetIndex - 1, targetIndex + 1] window
+  /// to strictly manage RAM and free hardware decoders immediately.
+  void _pruneControllers(int targetIndex) {
+    final keysToRemove = _controllers.keys
+        .where((i) => i < targetIndex - 1 || i > targetIndex + 1)
+        .toList();
+
+    for (final key in keysToRemove) {
+      final controller = _controllers.remove(key);
+      controller?.pause();
+      controller?.dispose();
+    }
+  }
+
+  /// Initializes a video controller for a given reel index.
+  /// Uses disk cache if available (or starts background disk caching).
+  Future<void> _initController(
+    int index,
+    String url,
+    bool shouldAutoPlay,
+  ) async {
+    if (_isDisposed ||
+        _controllers.containsKey(index) ||
+        _initializingIndices.contains(index)) {
+      return;
+    }
+
+    _initializingIndices.add(index);
+
+    try {
+      final controller =
+          await ReelVideoCacheManager.instance.createController(url);
+
+      if (_isDisposed ||
+          !mounted ||
+          index < _currentIndex - 1 ||
+          index > _currentIndex + 1) {
+        controller.dispose();
+        return;
+      }
+
+      await controller.initialize();
+
+      if (_isDisposed ||
+          !mounted ||
+          index < _currentIndex - 1 ||
+          index > _currentIndex + 1) {
+        controller.dispose();
+        return;
+      }
+
+      controller.setLooping(true);
+      _controllers[index] = controller;
+
+      final reelsPaused = context.read<HomeBloc>().state.reelsPaused;
+      if (index == _currentIndex && shouldAutoPlay && !reelsPaused) {
+        await controller.play();
+      } else {
+        await controller.pause();
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint("Error initializing reel video at index $index: $e");
+    } finally {
+      _initializingIndices.remove(index);
+    }
+  }
+
+  /// Manages video controllers with an ultra-low RAM sliding window:
+  /// - Holds at most 3 controllers: [targetIndex - 1, targetIndex, targetIndex + 1]
+  /// - Preloads targetIndex + 1 into memory (initialized and paused at 0)
+  /// - Pre-caches targetIndex + 2 to disk ONLY (0 extra RAM!)
+  /// - Disposes all controllers outside the window immediately
+  void _syncControllers(
     List<TemplateModel> templates,
-    int currentIndex,
+    int targetIndex,
     bool reelsPaused,
   ) {
-    // 1. Determine target URLs to cache (current, previous, and next two)
-    final Set<String> targetUrls = {};
-    for (int i = currentIndex - 1; i <= currentIndex + 2; i++) {
-      if (i >= 0 && i < templates.length) {
-        final videoUrl = templates[i].previewVideo;
-        if (videoUrl != null && videoUrl.isNotEmpty) {
-          targetUrls.add(videoUrl);
+    if (templates.isEmpty || _isDisposed) return;
+
+    _currentIndex = targetIndex;
+
+    // 1. Immediately prune controllers outside window to conserve RAM
+    _pruneControllers(targetIndex);
+
+    // 2. Play active video or initialize it
+    final currentController = _controllers[targetIndex];
+    if (currentController != null && currentController.value.isInitialized) {
+      if (!reelsPaused) {
+        if (!currentController.value.isPlaying) {
+          currentController.play();
+        }
+      } else {
+        if (currentController.value.isPlaying) {
+          currentController.pause();
+        }
+      }
+    } else {
+      final currentUrl = _getVideoUrl(templates, targetIndex);
+      if (currentUrl != null) {
+        _initController(targetIndex, currentUrl, true);
+      }
+    }
+
+    // 3. Pause previous video if present
+    if (targetIndex > 0) {
+      _controllers[targetIndex - 1]?.pause();
+    }
+
+    // 4. Preload next video controller (targetIndex + 1)
+    final nextIndex = targetIndex + 1;
+    if (nextIndex < templates.length) {
+      final nextUrl = _getVideoUrl(templates, nextIndex);
+      if (nextUrl != null) {
+        ReelVideoCacheManager.instance.preCacheVideoToDisk(nextUrl);
+        if (!_controllers.containsKey(nextIndex)) {
+          _initController(nextIndex, nextUrl, false);
         }
       }
     }
 
-    // 2. Dispose of controllers not in target set
-    final urlsToRemove = _videoCache.keys
-        .where((url) => !targetUrls.contains(url))
-        .toList();
-    for (final url in urlsToRemove) {
-      _videoCache[url]?.dispose();
-      _videoCache.remove(url);
-    }
-
-    // 3. Initialize new controllers
-    for (final url in targetUrls) {
-      if (!_videoCache.containsKey(url)) {
-        final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-        _videoCache[url] = controller;
-        controller
-            .initialize()
-            .then((_) {
-              controller.setLooping(true);
-              // Play immediately if it's the active one and reels not paused
-              if (mounted) {
-                final activeIndex = context.read<HomeBloc>().state.currentIndex;
-                final activeTemplates =
-                    context.read<HomeBloc>().state.templateList ?? [];
-                final activeReelsPaused = context
-                    .read<HomeBloc>()
-                    .state
-                    .reelsPaused;
-                if (activeIndex >= 0 && activeIndex < activeTemplates.length) {
-                  if (activeTemplates[activeIndex].previewVideo == url &&
-                      !activeReelsPaused) {
-                    controller.play();
-                  }
-                }
-              }
-            })
-            .catchError((e) {
-              debugPrint("Pre-cache error: $e");
-            });
+    // 5. Pre-cache next-next video to disk ONLY (zero RAM cost!)
+    final nextNextIndex = targetIndex + 2;
+    if (nextNextIndex < templates.length) {
+      final nextNextUrl = _getVideoUrl(templates, nextNextIndex);
+      if (nextNextUrl != null) {
+        ReelVideoCacheManager.instance.preCacheVideoToDisk(nextNextUrl);
       }
-    }
-
-    // 4. Play active video, pause others
-    if (currentIndex >= 0 && currentIndex < templates.length) {
-      final activeUrl = templates[currentIndex].previewVideo;
-      _videoCache.forEach((url, controller) {
-        if (controller.value.isInitialized) {
-          if (url == activeUrl && !reelsPaused) {
-            if (!controller.value.isPlaying) {
-              controller.play();
-            }
-          } else {
-            if (controller.value.isPlaying) {
-              controller.pause();
-            }
-          }
-        }
-      });
     }
   }
 
@@ -138,10 +233,31 @@ class _HomeViewState extends State<HomeView> {
           Positioned.fill(
             child: BlocListener<HomeBloc, HomeState>(
               listenWhen: (previous, current) =>
-                  previous.status != current.status,
+                  previous.status != current.status ||
+                  previous.templateList != current.templateList ||
+                  previous.reelsPaused != current.reelsPaused,
               listener: (context, state) {
-                final int userCoins =
-                    AppPreferences().getInt(AppPreferences.coin) ?? 0;
+                // Keep controllers in sync when template list arrives or updates
+                if (state.templateList != null && state.templateList!.isNotEmpty) {
+                  _syncControllers(
+                    state.templateList!,
+                    _currentIndex,
+                    state.reelsPaused,
+                  );
+                }
+
+                // If reelsPaused toggled
+                if (state.reelsPaused) {
+                  _controllers[_currentIndex]?.pause();
+                } else {
+                  final activeController = _controllers[_currentIndex];
+                  if (activeController != null && activeController.value.isInitialized) {
+                    if (!activeController.value.isPlaying) {
+                      activeController.play();
+                    }
+                  }
+                }
+
                 if (state.status == HomeStatus.rewardAdLoading) {
                   context.read<HomeBloc>().add(
                     SetReelsPausedEvent(paused: true),
@@ -468,13 +584,6 @@ class _HomeViewState extends State<HomeView> {
                 builder: (context, state) {
                   final templates = state.templateList ?? [];
 
-                  // Manage pre-caching for current viewport
-                  _manageVideoCache(
-                    templates,
-                    state.currentIndex,
-                    state.reelsPaused,
-                  );
-
                   if (state.status == HomeStatus.loading) {
                     return const Center(
                       child: CircularProgressIndicator(
@@ -496,26 +605,27 @@ class _HomeViewState extends State<HomeView> {
 
                   return PageView.builder(
                     controller: _pageController,
-                    physics: (state.scrollLocked ?? false)
-                        ? const NeverScrollableScrollPhysics()
-                        : const BouncingScrollPhysics(),
+                    physics: const BouncingScrollPhysics(),
                     scrollDirection: Axis.vertical,
                     itemCount: templates.length,
                     onPageChanged: (index) {
                       final homeBloc = context.read<HomeBloc>();
                       homeBloc.add(ChangeIndexEvent(index: index));
 
-                      // Show interstitial ad every 3 reels scrolled down
+                      // Instant playback & tight sliding-window preloading
+                      _syncControllers(templates, index, state.reelsPaused);
+
+                      // Show interstitial ad every 4 reels scrolled down
                       if (index > _lastReelIndex) {
                         _reelScrollCount++;
 
-                        if (_reelScrollCount % 3 == 0 &&
+                        if (_reelScrollCount % 4 == 0 &&
                             AdHelper.isInterstitialReady &&
                             state.isAdFlowRunning == false) {
                           homeBloc.add(
                             SetAdFlowStatusEvent(
                               isAdFlowRunning: true,
-                              scrollLocked: true,
+                              scrollLocked: false,
                             ),
                           );
 
@@ -566,11 +676,11 @@ class _HomeViewState extends State<HomeView> {
                     },
                     itemBuilder: (context, index) {
                       final template = templates[index];
-                      final controller = _videoCache[template.previewVideo];
+                      final controller = _controllers[index];
                       return ReelItemWidget(
                         template: template,
                         controller: controller,
-                        isActive: index == state.currentIndex,
+                        isActive: index == _currentIndex,
                         index: index,
                       );
                     },
@@ -610,11 +720,14 @@ class _HomeViewState extends State<HomeView> {
                         padding: const EdgeInsets.only(right: 8),
                         child: GestureDetector(
                           onTap: () {
-                            if (category.categoryName == selectedCategory) return;
-                            
                             int taps = AppPreferences().getInt(AppPreferences.categoryOnTap) ?? 0;
                             taps++;
                             AppPreferences().setInt(AppPreferences.categoryOnTap, taps);
+
+                            _disposeAllControllers();
+                            _currentIndex = 0;
+                            _lastReelIndex = 0;
+                            _reelScrollCount = 0;
 
                             final homeBloc = context.read<HomeBloc>();
                             homeBloc.add(
@@ -631,8 +744,6 @@ class _HomeViewState extends State<HomeView> {
                                 scrollLocked: false,
                               ),
                             );
-                            _lastReelIndex = 0;
-                            _reelScrollCount = 0;
 
                             final showAd = taps % 3 == 0;
                             if (showAd) {

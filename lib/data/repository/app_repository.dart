@@ -128,7 +128,7 @@ class AppRepository {
   }) async {
     try {
       final docSnapshot = await fireStore
-          .collection(AppStrings.txtTemplatedYT)
+          .collection(AppStrings.txtTemplatesData)
           .doc(id)
           .get();
       if (docSnapshot.exists) {

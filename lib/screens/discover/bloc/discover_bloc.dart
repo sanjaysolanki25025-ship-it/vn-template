@@ -115,12 +115,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
             favIds = favModels.map((fav) => fav.templateId.toString()).toList();
           });
 
-          final List<TemplateModel> updatedList = pagedData.templates.map((
-            template,
-          ) {
-            final isLiked = favIds.contains(template.id);
-            return template.copyWith(isFavourite: isLiked);
-          }).toList();
+          final List<TemplateModel> updatedList = pagedData.templates
+              .where((t) => t.hasValidVideo)
+              .map((template) {
+                final isLiked = favIds.contains(template.id);
+                return template.copyWith(isFavourite: isLiked);
+              }).toList();
 
           emit(state.copyWith(
             status: DiscoverStatus.loaded,
@@ -193,12 +193,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
           favIds = favModels.map((fav) => fav.templateId.toString()).toList();
         });
 
-        final List<TemplateModel> updatedList = pagedData.templates.map((
-          template,
-        ) {
-          final isLiked = favIds.contains(template.id);
-          return template.copyWith(isFavourite: isLiked);
-        }).toList();
+        final List<TemplateModel> updatedList = pagedData.templates
+            .where((t) => t.hasValidVideo)
+            .map((template) {
+              final isLiked = favIds.contains(template.id);
+              return template.copyWith(isFavourite: isLiked);
+            }).toList();
 
         emit(state.copyWith(
           status: DiscoverStatus.loaded,
@@ -249,12 +249,12 @@ class DiscoverBloc extends Bloc<DiscoverEvent, DiscoverState> {
           favIds = favModels.map((fav) => fav.templateId.toString()).toList();
         });
 
-        final List<TemplateModel> newTemplates = pagedData.templates.map((
-          template,
-        ) {
-          final isLiked = favIds.contains(template.id);
-          return template.copyWith(isFavourite: isLiked);
-        }).toList();
+        final List<TemplateModel> newTemplates = pagedData.templates
+            .where((t) => t.hasValidVideo)
+            .map((template) {
+              final isLiked = favIds.contains(template.id);
+              return template.copyWith(isFavourite: isLiked);
+            }).toList();
 
         final startIndex = state.templates.length;
         final currentList = List<TemplateModel>.from(state.templates)

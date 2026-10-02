@@ -14,8 +14,8 @@ class TemplateModel {
   final double rand;
   final int? coin;
   final String? title;
-  final String? previewVideo;
-  final String? previewImage;
+  final String? videoUrl;
+  final String? photoUrl;
   final int? likes;
   final int? usage;
 
@@ -23,6 +23,43 @@ class TemplateModel {
   final bool isFavourite;
   final bool isMute;
   final bool isPlaying;
+
+  // Compatibility getters for existing UI referencing previewVideo / previewImage
+  String? get previewVideo => videoUrl;
+  String? get previewImage => photoUrl;
+
+  /// Returns true if video_url points to an image format (.jpg, .jpeg, .png, .webp, .gif, .bmp, etc.)
+  bool get isVideoUrlImage {
+    final rawUrl = (videoUrl ?? previewVideo ?? '').trim();
+    if (rawUrl.isEmpty) return false;
+    final cleanPath = Uri.decodeFull(rawUrl).toLowerCase().split('?').first;
+    const imageExtensions = [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.gif',
+      '.bmp',
+      '.avif',
+      '.heic',
+      '.svg',
+      '.tiff',
+      '.ico',
+    ];
+    for (final ext in imageExtensions) {
+      if (cleanPath.endsWith(ext) || cleanPath.contains(ext)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Returns true only if the template has a valid, non-empty video URL that is NOT an image
+  bool get hasValidVideo {
+    final rawUrl = (videoUrl ?? previewVideo ?? '').trim();
+    if (rawUrl.isEmpty) return false;
+    return !isVideoUrlImage;
+  }
 
   TemplateModel({
     this.id,
@@ -37,14 +74,18 @@ class TemplateModel {
     double? rand,
     this.coin,
     this.title,
-    this.previewVideo,
-    this.previewImage,
+    String? previewVideo,
+    String? previewImage,
+    String? videoUrl,
+    String? photoUrl,
     this.likes,
     this.usage,
     this.isFavourite = false,
     this.isMute = false,
     this.isPlaying = false,
-  }) : createdAt = createdAt ?? DateTime.now(),
+  }) : videoUrl = videoUrl ?? previewVideo,
+       photoUrl = photoUrl ?? previewImage,
+       createdAt = createdAt ?? DateTime.now(),
        rand = rand ?? Random().nextDouble();
 
   TemplateModel copyWith({
@@ -62,6 +103,8 @@ class TemplateModel {
     String? title,
     String? previewVideo,
     String? previewImage,
+    String? videoUrl,
+    String? photoUrl,
     int? likes,
     int? usage,
     bool? isFavourite,
@@ -81,8 +124,8 @@ class TemplateModel {
       rand: rand ?? this.rand,
       coin: coin ?? this.coin,
       title: title ?? this.title,
-      previewVideo: previewVideo ?? this.previewVideo,
-      previewImage: previewImage ?? this.previewImage,
+      videoUrl: videoUrl ?? previewVideo ?? this.videoUrl,
+      photoUrl: photoUrl ?? previewImage ?? this.photoUrl,
       likes: likes ?? this.likes,
       usage: usage ?? this.usage,
       isFavourite: isFavourite ?? this.isFavourite,
@@ -105,10 +148,10 @@ class TemplateModel {
       'rand': rand,
       'coin': coin,
       'title': title,
-      'previewVideo': previewVideo,
-      'previewImage': previewImage,
-      'likes': likes,
-      'usage': usage,
+      'video_url': videoUrl ?? '',
+      'photo_url': photoUrl ?? '',
+      'likes': likes ?? 0,
+      'usage': usage ?? 0,
     };
   }
 
@@ -117,7 +160,15 @@ class TemplateModel {
       id: map['id'] ?? '',
       description: map['description'] ?? '',
       qrCode: map['qrCode'] ?? '',
-      category: List<String>.from(map['category'] ?? []),
+      category: () {
+        final cat = map['category'];
+        if (cat is List) {
+          return cat.map((e) => e.toString()).toList();
+        } else if (cat is String && cat.isNotEmpty) {
+          return cat.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        }
+        return <String>[];
+      }(),
       language: map['language'] ?? '',
       code: map['code'] ?? '',
       clip: map['clip'] ?? '',
@@ -130,8 +181,24 @@ class TemplateModel {
           : Random().nextDouble(),
       coin: map['coin'] is int ? map['coin'] : 0,
       title: map['title'] ?? '',
-      previewVideo: map['previewVideo'] ?? '',
-      previewImage: map['previewImage'] ?? '',
+      videoUrl: () {
+        final v = map['video_url'] ??
+            map['preview_video'] ??
+            map['videoUrl'] ??
+            map['previewVideo'] ??
+            map['video'] ??
+            map['url'];
+        return v != null ? v.toString().trim() : '';
+      }(),
+      photoUrl: () {
+        final p = map['photo_url'] ??
+            map['preview_image'] ??
+            map['photoUrl'] ??
+            map['previewImage'] ??
+            map['photo'] ??
+            map['image'];
+        return p != null ? p.toString().trim() : '';
+      }(),
       likes: map['likes'] is int ? map['likes'] : 0,
       usage: map['usage'] is int ? map['usage'] : 0,
     );
