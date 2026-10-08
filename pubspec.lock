@@ -989,6 +989,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
+  izooto_plugin:
+    dependency: "direct main"
+    description:
+      name: izooto_plugin
+      sha256: "66e0a375945ac04f7c0b09ced9acce1610beda872e9bcb13c6789ef97fb559fd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.8.3"
   jni:
     dependency: transitive
     description:

@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:izooto_plugin/iZooto_flutter.dart';
 import 'package:vn_template/core/constant/app_string.dart';
 
 /// Notification Channel
@@ -145,14 +146,33 @@ class NotificationService {
     final messaging = FirebaseMessaging.instance;
 
     /// 1. Request permission
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    final NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
-    await _localNotifications
+    final bool? androidPermissionGranted = await _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
+    // If permission is allowed on Android, set iZooto subscription
+    if (Platform.isAndroid &&
+        (androidPermissionGranted == true ||
+            settings.authorizationStatus == AuthorizationStatus.authorized)) {
+      iZooto.setSubscription(true);
+    }
+
     /// 2. Init local notification
     await _setupFlutterNotifications();
+
+    /// Fetch and print FCM token
+    try {
+      final String? fcmToken = await messaging.getToken();
+      print('FCM Token: $fcmToken');
+    } catch (e) {
+      print('Error getting FCM token: $e');
+    }
 
     /// 3. Subscribe to topic
     await messaging.subscribeToTopic(AppStrings.txtNotificationChannel);

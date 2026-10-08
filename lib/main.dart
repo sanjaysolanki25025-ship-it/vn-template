@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:clarity_flutter/clarity_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -21,6 +23,46 @@ import 'package:vn_template/core/constant/app_ad_id_string.dart';
 import 'package:vn_template/data/helper/ad_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vn_template/data/services/notification_services.dart';
+import 'package:izooto_plugin/iZooto_flutter.dart';
+
+
+Future<void> _iZootoInitialise() async {
+  if (!Platform.isAndroid) return;
+
+  // false will trigger WebView listener, true will trigger default WebView
+  iZooto.androidInit(false);
+
+  // DeepLink callback
+  iZooto.shared.onNotificationOpened((data) {
+    debugPrint('iZooto DeepLink Data: $data');
+  });
+
+  // LandingURL callback
+  iZooto.shared.onWebView((landingUrl) {
+    debugPrint('iZooto Landing URL: $landingUrl');
+  });
+
+  // Received payload callback
+  iZooto.shared.onNotificationReceived((payload) {
+    debugPrint('iZooto Flutter Payload: $payload');
+    if (payload != null && payload.isNotEmpty) {
+      try {
+        final dynamic decoded = json.decode(payload);
+        if (decoded is List) {
+          final List<dynamic> receivedPayload = decoded.reversed.toList();
+          debugPrint('iZooto Reversed Payload: $receivedPayload');
+        }
+      } catch (e) {
+        debugPrint('iZooto payload parse error: $e');
+      }
+    }
+  });
+
+  // Device token callback
+  iZooto.shared.onTokenReceived((token) {
+    debugPrint('iZooto Flutter Token: $token');
+  });
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +98,7 @@ Future<void> main() async {
   await remoteConfig.fetchAndActivate();
   AppAdIdString.initLiveAds();
 
+  await _iZootoInitialise();
   await NotificationService.init();
   AdHelper.precacheAppOpenAd();
 
